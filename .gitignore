@@ -1,0 +1,68 @@
+﻿# Python / virtualenv
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.env
+.venv/
+ENV/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs, temp, data outputs
+*.log
+*.csv
+*.sqlite
+*.db
+*.bak
+*.tmp
+
+# Secrets and keys
+*.pem
+*.key
+aws_credentials*
+credentials.*
+.env.*
+
+# Python Notebook checkpoints
+.ipynb_checkpoints
+
+# Jupyter lab workspace
+.jupyter/
+
+# Mac/Linux swap
+*~
+
+# Coverage and virtual envs
+htmlcov/
+.coverage
+
+# Terraform / cloud artifacts (if any)
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Misc
+*.class
+*.exe

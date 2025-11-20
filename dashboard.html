@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bengaluru SmartCity Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #0f172a;
+      background: linear-gradient(rgba(240,244,255,0.82), rgba(221,236,255,0.9));
+    }
+
+    /* NOTE: background image removed as requested (no body:before background) */
+
+    /* Header */
+    header { padding: 2.0rem 2.5rem 0 2.5rem; text-align: center; }
+    h1 {
+      margin: 0 0 0.4rem 0;
+      font-size: 3.0rem;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      color: #07203a;
+      font-weight: 800;
+    }
+    .about-blurb {
+      display: inline-block;
+      max-width: 900px;
+      margin: 0.5em 0 1em 0;
+      padding: .6em 1.1em;
+      background: #ecfeffcc;
+      border-left: 5px solid #0ea5e9;
+      color: #255168;
+      font-size: 1.02em;
+      border-radius: 8px;
+    }
+
+    /* Top controls */
+    .top-bar {
+      display: flex;
+      justify-content: center;
+      gap: 0.9rem;
+      margin-bottom: 1.0rem;
+    }
+    #csvFileInput { font-size:1.02em; padding:0.55em 0.6em; border-radius:8px; border:1px solid #d1d5db; background:#fff; cursor:pointer; }
+    .dl-btn { background:#1366d6; border-radius:9px; color:#fff; padding:.55em 1em; font-weight:700; border:none; font-size:1.02em; cursor:pointer; }
+    .dl-btn:hover { background:#0a337b; }
+
+    /* Main area */
+    .main-wrap { margin: 0 auto; max-width: 1400px; padding: 1.2em 2.5em 2.5em 2.5em; }
+    .main-section {
+      padding: 1.4em;
+      background: rgba(248,250,255,0.9);
+      border-radius: 18px;
+      box-shadow: 0 10px 36px rgba(148,170,210,0.12);
+    }
+
+    /* KPIs row — removed Location card per request */
+    .kpis { display:flex; justify-content:space-between; gap:1rem; margin-bottom:1.2rem; flex-wrap:wrap; }
+    .kpi-card { flex:1 1 0; background:#fff; border-radius:14px; padding:1.0em; box-shadow:0 6px 18px rgba(170,190,220,0.06); text-align:center; font-weight:700; color:#1e3a8a; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+    .kpi-card .label { display:block; font-size:0.9em; color:#475569; font-weight:600; margin-bottom:0.3em; }
+    .kpi-value { font-size:1.6rem; color:#123a8a; display:inline-flex; align-items:center; gap:0.5rem; font-weight:800; }
+
+    /* top charts: three equal, bigger */
+    .charts-row {
+      display:flex;
+      gap:1rem;
+      align-items:stretch;
+      margin-bottom:1.2rem;
+      flex-wrap:wrap;
+    }
+    .chart-eq {
+      flex: 1 1 0;
+      min-width: 300px;
+      background:#fff;
+      border-radius:14px;
+      padding:1.1rem;
+      box-shadow:0 6px 18px rgba(170,190,220,0.06);
+      text-align:center;
+      height: 420px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .chart-eq h3 { margin: 0; font-size:1.06em; color:#274066; }
+
+    /* Map below charts, full width card */
+    .map-row { margin-top: 1rem; }
+    .map-card {
+      background:#f5fafc;
+      border-radius:14px;
+      padding:1rem;
+      box-shadow:0 6px 18px rgba(170,190,220,0.06);
+    }
+    .map-card h3 { margin:0 0 0.6rem 0; color:#166ea2; font-size:1.05em; }
+    #map { height:480px; width:100%; border-radius:12px; }
+
+    /* Emission section (bigger) */
+    .modern-section {
+      margin-top:1rem;
+      padding:1.1rem;
+      border-radius:12px;
+      background:#0f172a0f;
+      color:#0f172a;
+      box-shadow:0 8px 32px rgba(19,39,72,0.06);
+      text-align:center;
+    }
+    .modern-statusbox { margin:0.6em auto; padding:1.0em; border-radius:10px; font-weight:700; max-width:1000px; }
+    .modern-safe { background: #2dd4bf18; color: #075a4a; border: 2px solid #2dd4bf; }
+    .modern-warn { background: #facc1518; color: #6b4a00; border: 2px solid #facc15; }
+    .modern-danger { background: #f871711a; color: #5a2a1a; border: 2px solid #f87171; }
+
+    /* Footer */
+    .footer { margin:1.2em auto 0 auto; text-align:center; color:#6b7280; font-size:1rem; opacity:.9; }
+
+    /* Responsive tweaks */
+    @media (max-width: 1150px) {
+      .charts-row { flex-direction: column; }
+      .chart-eq { height: 360px; }
+      #map { height:420px; }
+    }
+    @media (max-width: 520px) {
+      h1 { font-size: 2.2rem; }
+      .chart-eq { height: 300px; }
+      #map { height:320px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Bengaluru SmartCity Dashboard</h1>
+    <div class="about-blurb">Upload sensor CSV, view live KPIs and charts, and inspect sensors on the city map — demo data supported.</div>
+
+    <div class="top-bar">
+      <input type="file" id="csvFileInput" accept=".csv" />
+      <button class="dl-btn" id="dlCsv" style="display:none;">Download CSV</button>
+    </div>
+  </header>
+
+  <main class="main-wrap">
+    <section class="main-section">
+      <!-- KPIs: Location removed; only Temperature, AQI, Humidity remain with icons near values -->
+      <div class="kpis">
+        <div class="kpi-card">
+          <span class="label">Temperature (°C)</span>
+          <span class="kpi-value">🌡️ <span id="kpi-temp">—</span></span>
+        </div>
+
+        <div class="kpi-card">
+          <span class="label">Air Quality Index</span>
+          <span class="kpi-value">🟦 <span id="kpi-aqi">—</span></span>
+        </div>
+
+        <div class="kpi-card">
+          <span class="label">Humidity (%)</span>
+          <span class="kpi-value">💧 <span id="kpi-hum">—</span></span>
+        </div>
+      </div>
+
+      <!-- three big equal charts -->
+      <div class="charts-row">
+        <div class="chart-eq">
+          <h3>Air Quality Index (AQI) Over Time</h3>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+            <canvas id="aqiChart" style="width:100%; height:100%;"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-eq">
+          <h3>Temperature (°C) Over Time</h3>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+            <canvas id="tempChart" style="width:100%; height:100%;"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-eq">
+          <h3>Humidity (%) Over Time</h3>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+            <canvas id="humChart" style="width:100%; height:100%;"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map below -->
+      <div class="map-row">
+        <div class="map-card">
+          <h3>Sensors Map (demo)</h3>
+          <div id="map"></div>
+        </div>
+      </div>
+
+      <!-- larger emission chart / status -->
+      <div class="modern-section">
+        <div id="modernStatus" class="modern-statusbox modern-safe">Upload your CSV to see the latest emission status for the active location.</div>
+        <div style="max-width:1200px; margin: 0 auto;">
+          <canvas id="emissionChart" style="width:100%; height:320px;"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">Project by SAI KRISHA | Chanakya University | Map: Leaflet.js</div>
+  </main>
+
+  <script>
+    // CSV download
+    let currentCsvBlob;
+    document.getElementById('dlCsv').addEventListener('click', function() {
+      if (currentCsvBlob) {
+        const url = URL.createObjectURL(currentCsvBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'dashboard_data.csv';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      }
+    });
+
+    // Map: demo coords
+    const map = L.map('map').setView([12.9777, 77.5911], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { minZoom: 11, maxZoom: 16 }).addTo(map);
+    const sensors = [
+      {name:'Majestic', coords:[12.9781,77.5706]},
+      {name:'MG Road',   coords:[12.9763,77.6033]},
+      {name:'Whitefield',coords:[12.9698,77.7499]},
+      {name:'Hebbal',    coords:[13.0455,77.5913]},
+      {name:'Electronic City', coords:[12.8391,77.6786]}
+    ];
+    sensors.forEach(s => L.marker(s.coords).addTo(map).bindPopup('<b>Sensor:</b> '+s.name));
+
+    // helper: sample
+    function sampleArray(arr, n) {
+      if (arr.length <= n) return arr;
+      const step = arr.length / n;
+      let result = [];
+      for (let i = 0; i < n; i++) result.push(arr[Math.floor(i * step)]);
+      return result;
+    }
+
+    let aqiChart, tempChart, humChart, emissionChart;
+
+    function updateKPI(latest) {
+      // Location was removed per request; don't set/force Bengaluru anywhere
+      document.getElementById('kpi-temp').textContent = latest.temperature_c || "—";
+      document.getElementById('kpi-aqi').textContent = latest.aqi || "—";
+      document.getElementById('kpi-hum').textContent = latest.humidity || "—";
+    }
+
+    function drawCharts(data) {
+      const POINTS = 30;
+      const sampled = sampleArray(data, POINTS).reverse();
+      const labels = sampled.map(r => r.timestamp);
+      const aqiData = sampled.map(r => Number(r.aqi || 0));
+      const tempData = sampled.map(r => Number(r.temperature_c || 0));
+      const humData = sampled.map(r => Number(r.humidity || 0));
+
+      if (aqiChart) aqiChart.destroy(); if (tempChart) tempChart.destroy(); if (humChart) humChart.destroy();
+
+      const commonOpts = {
+        maintainAspectRatio:false,
+        plugins:{ legend:{ position:'top' } },
+        scales: { x: { ticks: { maxRotation: 45, minRotation: 30, autoSkip: true } } }
+      };
+
+      aqiChart = new Chart(document.getElementById('aqiChart').getContext('2d'), {
+        type:'line',
+        data:{ labels, datasets:[{ label:'AQI', data:aqiData, borderColor:'#3b82f6', backgroundColor:'#dbeafe', fill:true, tension:0.3, pointRadius:3 }]},
+        options: commonOpts
+      });
+
+      tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), {
+        type:'line',
+        data:{ labels, datasets:[{ label:'Temp (°C)', data:tempData, borderColor:'#f59e42', backgroundColor:'#fdecc8', fill:true, tension:0.3, pointRadius:3 }]},
+        options: commonOpts
+      });
+
+      humChart = new Chart(document.getElementById('humChart').getContext('2d'), {
+        type:'line',
+        data:{ labels, datasets:[{ label:'Humidity (%)', data:humData, borderColor:'#06b6d4', backgroundColor:'#e0f2fe', fill:true, tension:0.3, pointRadius:3 }]},
+        options: commonOpts
+      });
+    }
+
+    function getStatus(latest) {
+      const aqi = Number(latest.aqi || 999), co = Number(latest.co || 999), pm10 = Number(latest.pm10 || 999);
+      if (aqi <= 50 && co <= 1 && pm10 <= 50) return {msg:"✅ Safe — air quality is excellent.", cls:"modern-safe"};
+      if (aqi <= 100 && co <= 2 && pm10 <= 100) return {msg:"⚠️ Caution — air is moderate. Sensitive groups take care.", cls:"modern-warn"};
+      return {msg:"🚨 Danger — pollution levels are high.", cls:"modern-danger"};
+    }
+
+    function drawEmissionChart(data) {
+      if (emissionChart) emissionChart.destroy();
+      const recent = sampleArray(data.slice(0,100), 12).reverse();
+      const labels = recent.map(d => d.timestamp && d.timestamp.split ? (d.timestamp.split('T')[1]||d.timestamp) : d.timestamp);
+      emissionChart = new Chart(document.getElementById('emissionChart').getContext('2d'), {
+        type:'bar',
+        data:{ labels, datasets:[
+          {label:'AQI', data: recent.map(d=>Number(d.aqi||0)), backgroundColor:'#60a5fa'},
+          {label:'CO (ppm)', data: recent.map(d=>Number(d.co||0)), backgroundColor:'#4ade80'},
+          {label:'PM10 (μg/m³)', data: recent.map(d=>Number(d.pm10||0)), backgroundColor:'#fbbf24'}
+        ]},
+        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ position:'top' } } }
+      });
+    }
+
+    // handle CSV upload
+    document.getElementById('csvFileInput').addEventListener('change', function(e){
+      const file = e.target.files[0]; if (!file) return;
+      Papa.parse(file, { header:true, skipEmptyLines:true, complete: res => {
+        const sorted = res.data.sort((a,b)=> (b.timestamp||'').localeCompare(a.timestamp||''));
+        updateKPI(sorted[0]||{});
+        drawCharts(sorted);
+        drawEmissionChart(sorted);
+        const status = getStatus(sorted[0]||{});
+        const sbox = document.getElementById('modernStatus');
+        sbox.textContent = status.msg; sbox.className = 'modern-statusbox ' + status.cls;
+        currentCsvBlob = new Blob([Papa.unparse(res.data)], { type: 'text/csv' });
+        document.getElementById('dlCsv').style.display = 'inline-block';
+      }});
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SmartCity — Static Dashboard (CSV Upload)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#071422;--panel:#0d1b23;--muted:#9aa4b2;--accent:#06b6d4}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:0;background:var(--bg);color:#e6eef6}
+    .wrap{max-width:1200px;margin:20px auto;padding:18px}
+    header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    h1{font-size:20px;margin:0}
+    .muted{color:var(--muted);font-size:13px}
+    .controls{display:flex;gap:10px;align-items:center}
+    input[type=file]{display:inline-block}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;padding:8px 10px;border-radius:8px;cursor:pointer}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+    .panel{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:14px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.5)}
+    .metric{font-size:26px;font-weight:700}
+    .k{font-size:12px;color:var(--muted)}
+    .charts{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:18px}
+    canvas{width:100% !important;height:260px !important}
+    .small-canvas{height:130px !important}
+    .map-placeholder{height:120px;background:linear-gradient(90deg,#0b2731,#082029);display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    td,th{padding:6px;font-size:13px}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    @media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}}
+    @media(max-width:600px){.grid{grid-template-columns:1fr}}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>SmartCity — Static Dashboard (upload CSV)</h1>
+        <div class="muted">Upload your timeseries CSV (like <code>bengaluru_timeseries.csv</code>). The page parses it locally — no server required.</div>
+      </div>
+      <div class="controls">
+        <input id="csvFile" type="file" accept=".csv" />
+        <button id="reset">Load sample</button>
+        <button id="downloadPNG">Download Temp Chart</button>
+      </div>
+    </header>
+
+    <div class="grid" style="margin-top:18px">
+      <div class="panel">
+        <div class="k">City / Sample</div>
+        <div class="metric" id="cityName">-</div>
+        <div class="muted">Rows parsed: <span id="rowCount">0</span></div>
+      </div>
+      <div class="panel">
+        <div class="k">Avg AQI</div>
+        <div class="metric" id="metric-aqi">-</div>
+        <div class="muted">PM2.5 avg: <span id="metric-pm25">-</span></div>
+      </div>
+      <div class="panel">
+        <div class="k">Avg Temp (°C)</div>
+        <div class="metric" id="metric-temp">-</div>
+        <div class="muted">Humidity avg: <span id="metric-hum">-</span></div>
+      </div>
+      <div class="panel">
+        <div class="k">Rain events</div>
+        <div class="metric" id="metric-rain">-</div>
+        <div class="muted">Last timestamp: <span id="last-ts">-</span></div>
+      </div>
+    </div>
+
+    <div class="charts">
+      <div class="panel">
+        <canvas id="tempChart"></canvas>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="panel">
+          <canvas id="aqiChart" class="small-canvas"></canvas>
+        </div>
+        <div class="panel">
+          <div class="k">Map / Bin tracker</div>
+          <div class="map-placeholder">Map placeholder (static)</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:14px;margin-top:14px;flex-wrap:wrap">
+      <div class="panel" style="flex:1;min-width:320px">
+        <div class="k">Recent sample rows</div>
+        <div style="max-height:220px;overflow:auto;margin-top:8px"><table id="sampleTable"><thead><tr><th>timestamp</th><th>temp</th><th>aqi</th><th>pm2_5</th><th>rain_1h</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="panel" style="width:320px">
+        <div class="k">Quick Alerts</div>
+        <div id="alerts" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="muted">Tip: your CSV should contain headers like <code>aqi,city_id,co,humidity,pm10,pm2_5,rain_1h,mm,temperature_c,timestamp_c</code>. If headers differ, choose the matching column when asked by the parser. The page runs fully in browser and will not upload your data anywhere.</div>
+    </footer>
+  </div>
+
+<script>
+// helpers
+function fmt(n,dec=1){return n===null||n===undefined?'-':Number(n).toFixed(dec)}
+
+let tempChart, aqiChart;
+function buildCharts(data){
+  const labels = data.map(d=>d.timestamp_c);
+  const temps = data.map(d=>Number(d.temperature_c));
+  const aqis = data.map(d=>Number(d.aqi));
+
+  const ctxT = document.getElementById('tempChart');
+  const ctxA = document.getElementById('aqiChart');
+
+  if(tempChart) tempChart.destroy();
+  if(aqiChart) aqiChart.destroy();
+
+  tempChart = new Chart(ctxT,{type:'line',data:{labels, datasets:[{label:'Temp (°C)',data:temps,tension:0.25,pointRadius:3}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:false}}}});
+
+  aqiChart = new Chart(ctxA,{type:'bar',data:{labels, datasets:[{label:'AQI',data:aqis}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+}
+
+function showSampleRows(data){
+  const tbody = document.querySelector('#sampleTable tbody'); tbody.innerHTML='';
+  data.slice(-10).reverse().forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML=`<td>${r.timestamp_c}</td><td>${fmt(r.temperature_c)}</td><td>${fmt(r.aqi,0)}</td><td>${fmt(r.pm2_5,1)}</td><td>${r.rain_1h||0}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function computeAndRender(data){
+  if(!data.length) return;
+  document.getElementById('rowCount').innerText = data.length;
+  document.getElementById('cityName').innerText = data[0].city_id || 'City sample';
+  const avgAqi = data.reduce((s,v)=>s+Number(v.aqi||0),0)/data.length;
+  const avgPm25 = data.reduce((s,v)=>s+Number(v.pm2_5||0),0)/data.length;
+  const avgTemp = data.reduce((s,v)=>s+Number(v.temperature_c||0),0)/data.length;
+  const avgHum = data.reduce((s,v)=>s+Number(v.humidity||0),0)/data.length;
+  const rainEvents = data.filter(d=>Number(d.rain_1h)>0).length;
+  document.getElementById('metric-aqi').innerText = Math.round(avgAqi);
+  document.getElementById('metric-pm25').innerText = fmt(avgPm25,1);
+  document.getElementById('metric-temp').innerText = fmt(avgTemp,1) + ' °C';
+  document.getElementById('metric-hum').innerText = fmt(avgHum,1) + '%';
+  document.getElementById('metric-rain').innerText = rainEvents;
+  document.getElementById('last-ts').innerText = data[data.length-1].timestamp_c || '-';
+
+  // alerts
+  const alerts = [];
+  if(avgAqi>100) alerts.push(`<div style="color:#ffcc00">High AQI (avg ${Math.round(avgAqi)})</div>`);
+  const recentHighPm25 = data.slice(-5).some(d=>Number(d.pm2_5)>60);
+  if(recentHighPm25) alerts.push('<div style="color:#ff6666">Recent high PM2.5</div>');
+  if(Number(avgTemp)>35) alerts.push('<div style="color:#ff6666">High temperature</div>');
+  document.getElementById('alerts').innerHTML = alerts.length?alerts.join(''):'<div style="color:#9aa4b2">No alerts</div>';
+
+  buildCharts(data);
+  showSampleRows(data);
+}
+
+function normalizeHeaders(row){
+  // ensure timestamp_c and temperature_c and aqi and pm2_5 exist
+  if(!row.timestamp_c){
+    // try common alternates
+    if(row.timestamp) row.timestamp_c = row.timestamp;
+    else if(row.ts) row.timestamp_c = row.ts;
+  }
+  if(!row.temperature_c){
+    if(row.temperature) row.temperature_c = row.temperature;
+    else if(row.temp) row.temperature_c = row.temp;
+  }
+  if(!row.pm2_5){
+    if(row.pm25) row.pm2_5 = row.pm25;
+  }
+  return row;
+}
+
+function parseCSV(text){
+  const res = Papa.parse(text, {header:true, dynamicTyping:false, skipEmptyLines:true});
+  return res.data.map(normalizeHeaders).filter(r=>r.timestamp_c);
+}
+
+// sample data (small) in case user wants quick load
+const SAMPLE_CSV = `aqi,city_id,co,humidity,pm10,pm2_5,rain_1h,mm,temperature_c,timestamp_c
+50,Bengaluru,0.77,86,0.53,53.5,0,3.6,22.21,2025-11-17T11:12:42
+60,Bengaluru,0.9,80,0.6,45.3,0,0,24.3,2025-11-18T11:12:42
+120,Bengaluru,1.2,70,1.1,120.2,2,5,33.5,2025-11-19T11:12:42`;
+
+function loadSample(){
+  const parsed = parseCSV(SAMPLE_CSV);
+  computeAndRender(parsed);
+}
+
+document.getElementById('reset').addEventListener('click',loadSample);
+
+document.getElementById('csvFile').addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const parsed = parseCSV(e.target.result);
+      computeAndRender(parsed);
+    }catch(err){
+      alert('Failed to parse CSV: '+err.message);
+    }
+  };
+  reader.readAsText(f);
+});
+
+document.getElementById('downloadPNG').addEventListener('click',()=>{
+  const link = document.createElement('a');
+  link.href = document.getElementById('tempChart').toDataURL('image/png');
+  link.download = 'temp-chart.png'; link.click();
+});
+
+// initial load sample
+loadSample();
+</script>
+</body>
+</html>

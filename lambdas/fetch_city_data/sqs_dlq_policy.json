@@ -1,0 +1,16 @@
+﻿{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowSendToDLQ",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage",
+        "sqs:SendMessageBatch",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl"
+      ],
+      "Resource": "arn:aws:sqs:ap-south-1:075540751057:smartcity-lambda-dlq"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "city_id": "Bengaluru",
+  "timestamp": "2025-11-17T11:12:55.217237+00:00",
+  "timestamp_utc": "2025-11-17T11:12:55.217237+00:00",
+  "timestamp_ist": "2025-11-17T11:12:55.217237+00:00",
+  "timestamp_epoch": 1763377975,
+  "temperature_c": 21.42,
+  "humidity": 73.0,
+  "wind_speed_m_s": null,
+  "rain_1h_mm": 0.2,
+  "air_raw": {
+    "list": [
+      {
+        "main": {
+          "aqi": 1
+        },
+        "components": {
+          "co": 1.21,
+          "pm2_5": 26.2,
+          "pm10": 30.11
+        }
+      }
+    ]
+  },
+  "co": 1.21,
+  "pm2_5": 26.2,
+  "pm10": 30.11,
+  "aqi": 1,
+  "ttl": 1764587575
+}
