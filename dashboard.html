@@ -8,17 +8,50 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
+    /* Full page base */
     html, body { height: 100%; margin: 0; }
+
+    /* Background image layer (full-page) with medium blur */
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
       color: #0f172a;
+      /* fallback background color while image loads */
       background: linear-gradient(rgba(240,244,255,0.82), rgba(221,236,255,0.9));
+      position: relative;
+      min-height: 100%;
+      overflow-x: hidden;
     }
 
-    /* NOTE: background image removed as requested (no body:before background) */
+    /* Background image element using ::before for blur and coverage */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background-image: url('/mnt/data/65f3f347-84f5-43d8-912a-d60ce291d737.png');
+      background-size: cover;
+      background-position: center center;
+      background-repeat: no-repeat;
+      /* medium blur */
+      filter: blur(6px) saturate(0.95);
+      transform: scale(1.02);
+      will-change: transform, filter;
+      /* slightly dim the image to ensure readability */
+      opacity: 0.78;
+    }
+
+    /* subtle overlay to improve text contrast */
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: rgba(248,250,255,0.66); /* light overlay */
+      backdrop-filter: none;
+    }
 
     /* Header */
-    header { padding: 2.0rem 2.5rem 0 2.5rem; text-align: center; }
+    header { padding: 2.0rem 2.5rem 0 2.5rem; text-align: center; position: relative; z-index: 1; }
     h1 {
       margin: 0 0 0.4rem 0;
       font-size: 3.0rem;
@@ -32,11 +65,12 @@
       max-width: 900px;
       margin: 0.5em 0 1em 0;
       padding: .6em 1.1em;
-      background: #ecfeffcc;
+      background: rgba(236,254,255,0.92);
       border-left: 5px solid #0ea5e9;
       color: #255168;
       font-size: 1.02em;
       border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(20,45,70,0.06);
     }
 
     /* Top controls */
@@ -45,21 +79,22 @@
       justify-content: center;
       gap: 0.9rem;
       margin-bottom: 1.0rem;
+      position: relative; z-index: 1;
     }
     #csvFileInput { font-size:1.02em; padding:0.55em 0.6em; border-radius:8px; border:1px solid #d1d5db; background:#fff; cursor:pointer; }
     .dl-btn { background:#1366d6; border-radius:9px; color:#fff; padding:.55em 1em; font-weight:700; border:none; font-size:1.02em; cursor:pointer; }
     .dl-btn:hover { background:#0a337b; }
 
     /* Main area */
-    .main-wrap { margin: 0 auto; max-width: 1400px; padding: 1.2em 2.5em 2.5em 2.5em; }
+    .main-wrap { margin: 0 auto; max-width: 1400px; padding: 1.2em 2.5em 2.5em 2.5em; position: relative; z-index: 1; }
     .main-section {
       padding: 1.4em;
-      background: rgba(248,250,255,0.9);
+      background: rgba(248,250,255,0.92);
       border-radius: 18px;
       box-shadow: 0 10px 36px rgba(148,170,210,0.12);
     }
 
-    /* KPIs row — removed Location card per request */
+    /* KPIs row */
     .kpis { display:flex; justify-content:space-between; gap:1rem; margin-bottom:1.2rem; flex-wrap:wrap; }
     .kpi-card { flex:1 1 0; background:#fff; border-radius:14px; padding:1.0em; box-shadow:0 6px 18px rgba(170,190,220,0.06); text-align:center; font-weight:700; color:#1e3a8a; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
     .kpi-card .label { display:block; font-size:0.9em; color:#475569; font-weight:600; margin-bottom:0.3em; }
@@ -115,7 +150,7 @@
     .modern-danger { background: #f871711a; color: #5a2a1a; border: 2px solid #f87171; }
 
     /* Footer */
-    .footer { margin:1.2em auto 0 auto; text-align:center; color:#6b7280; font-size:1rem; opacity:.9; }
+    .footer { margin:1.2em auto 0 auto; text-align:center; color:#6b7280; font-size:1rem; opacity:.9; position: relative; z-index: 1; }
 
     /* Responsive tweaks */
     @media (max-width: 1150px) {
